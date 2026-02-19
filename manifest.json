@@ -1,20 +1,46 @@
 {
-  "name": "Offline Music Player",
-  "short_name": "Music",
+  "name": "Melody - Music Player",
+  "short_name": "Melody",
+  "description": "A beautiful offline music player for your device",
   "start_url": ".",
   "display": "standalone",
-  "background_color": "#0f172a",
-  "theme_color": "#0f172a",
+  "orientation": "portrait",
+  "background_color": "#0a0a0f",
+  "theme_color": "#8b5cf6",
+  "categories": [
+    "music",
+    "entertainment"
+  ],
+  "lang": "en-US",
+  "scope": "/",
+  "prefer_related_applications": false,
   "icons": [
     {
-      "src": "icons/icon-192.png",
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect fill='%238b5cf6' width='192' height='192' rx='40'/><path fill='white' d='M96 50v56.55c-3.12-1.8-6.72-2.92-10.55-2.92-11.6 0-21 9.4-21 21s9.4 21 21 21 21-9.4 21-21V71h21V50h-31.5z'/></svg>",
       "sizes": "192x192",
-      "type": "image/png"
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
     },
     {
-      "src": "icons/icon-512.png",
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect fill='%238b5cf6' width='512' height='512' rx='100'/><path fill='white' d='M256 120v150.8c-8.32-4.8-17.92-7.8-28.12-7.8-30.93 0-56 25.07-56 56s25.07 56 56 56 56-25.07 56-56V176h56V120H256z'/></svg>",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [],
+  "shortcuts": [
+    {
+      "name": "Scan Music",
+      "short_name": "Scan",
+      "description": "Scan device for music files",
+      "url": "?action=scan",
+      "icons": [
+        {
+          "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'><rect fill='%2310b981' width='96' height='96' rx='20'/><path fill='white' d='M48 20v22.2c-3.2-1.8-7-2.9-11-2.9-12.2 0-22 9.8-22 22s9.8 22 22 22 22-9.8 22-22V44h22V20H48z'/></svg>",
+          "sizes": "96x96"
+        }
+      ]
     }
   ]
 }
