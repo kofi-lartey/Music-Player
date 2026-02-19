@@ -17,6 +17,203 @@ let currentIndex = 0;
 const audio = new Audio();
 let video;
 
+// PWA Install prompt
+let deferredPrompt;
+let installButton = null;
+
+// Listen for the beforeinstallprompt event
+window.addEventListener('beforeinstallprompt', (e) => {
+    // Prevent Chrome 67 and earlier from automatically showing the prompt
+    e.preventDefault();
+    // Stash the event so it can be triggered later
+    deferredPrompt = e;
+    console.log('Install prompt available');
+
+    // Show install button if it exists
+    showInstallButton();
+});
+
+// Listen for successful installation
+window.addEventListener('appinstalled', (e) => {
+    console.log('App installed successfully');
+    deferredPrompt = null;
+    hideInstallButton();
+});
+
+function showInstallButton() {
+    // Check if button already exists
+    if (installButton) return;
+
+    // Create install button - positioned at top right
+    installButton = document.createElement('button');
+    installButton.id = 'installBtn';
+    installButton.innerHTML = `
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+        </svg>
+        <span class="text-sm">Install</span>
+    `;
+    installButton.className = 'fixed top-20 right-4 bg-gradient-to-r from-violet-600 to-indigo-600 text-white px-3 py-2 rounded-full shadow-lg flex items-center space-x-1.5 hover:from-violet-700 hover:to-indigo-700 transition-all transform hover:scale-105 z-50';
+
+    installButton.addEventListener('click', async () => {
+        if (deferredPrompt) {
+            deferredPrompt.prompt();
+            const { outcome } = await deferredPrompt.userChoice;
+            console.log('Install prompt outcome:', outcome);
+            deferredPrompt = null;
+            hideInstallButton();
+        }
+    });
+
+    document.body.appendChild(installButton);
+}
+
+function hideInstallButton() {
+    if (installButton) {
+        installButton.remove();
+        installButton = null;
+    }
+}
+
+// Check if app is already installed
+if (window.matchMedia('(display-mode: standalone)').matches) {
+    console.log('App is running in standalone mode');
+}
+
+// IndexedDB for storing music files (much larger capacity than localStorage)
+let db;
+const DB_NAME = 'MusicPlayerDB';
+const DB_VERSION = 1;
+const STORE_NAME = 'songs';
+
+function initDB() {
+    return new Promise((resolve, reject) => {
+        const request = indexedDB.open(DB_NAME, DB_VERSION);
+
+        request.onerror = () => {
+            console.error('IndexedDB error:', request.error);
+            reject(request.error);
+        };
+
+        request.onsuccess = () => {
+            db = request.result;
+            console.log('IndexedDB opened successfully');
+            resolve(db);
+        };
+
+        request.onupgradeneeded = (event) => {
+            const database = event.target.result;
+            if (!database.objectStoreNames.contains(STORE_NAME)) {
+                const store = database.createObjectStore(STORE_NAME, { keyPath: 'id', autoIncrement: true });
+                store.createIndex('name', 'name', { unique: false });
+                console.log('Object store created');
+            }
+        };
+    });
+}
+
+function saveSongToDB(file) {
+    return new Promise((resolve, reject) => {
+        if (!db) {
+            reject(new Error('Database not initialized'));
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = () => {
+            const transaction = db.transaction([STORE_NAME], 'readwrite');
+            const store = transaction.objectStore(STORE_NAME);
+
+            const song = {
+                name: file.name,
+                type: file.type || getMediaType(file.name),
+                data: reader.result,
+                size: file.size,
+                dateAdded: Date.now()
+            };
+
+            const request = store.add(song);
+            request.onsuccess = () => {
+                console.log('Song saved to DB:', file.name);
+                resolve(request.result);
+            };
+            request.onerror = () => reject(request.error);
+        };
+        reader.onerror = () => reject(new Error('Error reading file'));
+        reader.readAsDataURL(file);
+    });
+}
+
+function loadSongsFromDB() {
+    return new Promise((resolve, reject) => {
+        if (!db) {
+            reject(new Error('Database not initialized'));
+            return;
+        }
+
+        const transaction = db.transaction([STORE_NAME], 'readonly');
+        const store = transaction.objectStore(STORE_NAME);
+        const request = store.getAll();
+
+        request.onsuccess = () => {
+            media = request.result || [];
+            console.log('Loaded', media.length, 'songs from DB');
+            resolve(media);
+        };
+        request.onerror = () => reject(request.error);
+    });
+}
+
+function deleteSongFromDB(id) {
+    return new Promise((resolve, reject) => {
+        if (!db) {
+            reject(new Error('Database not initialized'));
+            return;
+        }
+
+        const transaction = db.transaction([STORE_NAME], 'readwrite');
+        const store = transaction.objectStore(STORE_NAME);
+        const request = store.delete(id);
+
+        request.onsuccess = () => {
+            console.log('Song deleted from DB');
+            resolve();
+        };
+        request.onerror = () => reject(request.error);
+    });
+}
+
+function clearAllSongsFromDB() {
+    return new Promise((resolve, reject) => {
+        if (!db) {
+            reject(new Error('Database not initialized'));
+            return;
+        }
+
+        const transaction = db.transaction([STORE_NAME], 'readwrite');
+        const store = transaction.objectStore(STORE_NAME);
+        const request = store.clear();
+
+        request.onsuccess = () => {
+            console.log('All songs cleared from DB');
+            resolve();
+        };
+        request.onerror = () => reject(request.error);
+    });
+}
+
+// Check storage quota
+async function checkStorageQuota() {
+    if (navigator.storage && navigator.storage.estimate) {
+        const estimate = await navigator.storage.estimate();
+        const used = (estimate.usage / 1024 / 1024).toFixed(2);
+        const available = (estimate.quota / 1024 / 1024 / 1024).toFixed(2);
+        console.log(`Storage: ${used} MB used, ${available} GB available`);
+        return { used, available };
+    }
+    return null;
+}
+
 // Error handling for audio playback
 audio.addEventListener('error', (e) => {
     console.error('Audio error:', audio.error);
@@ -101,32 +298,30 @@ async function scanDirectory(dirHandle, depth = 0) {
 
 function addFileToPlaylist(file) {
     return new Promise((resolve) => {
-        // Check if file already exists
+        // Check if file already exists by name and size
         const exists = media.some(m => m.name === file.name && m.size === file.size);
         if (exists) {
+            console.log('File already exists:', file.name);
             resolve();
             return;
         }
 
-        const reader = new FileReader();
-        reader.onload = () => {
-            media.push({
-                name: file.name,
-                type: file.type || getMediaType(file.name),
-                data: reader.result,
-                size: file.size
+        // Save directly to IndexedDB
+        saveSongToDB(file)
+            .then(async (id) => {
+                console.log('Added:', file.name, 'with ID:', id);
+                // Reload from DB to get the full list with IDs
+                await loadSongsFromDB();
+                renderPlaylist();
+                updateSongCount();
+                checkStorageQuota();
+                resolve();
+            })
+            .catch((err) => {
+                console.error('Error adding file:', err);
+                alert('Error adding file: ' + file.name);
+                resolve();
             });
-            saveToStorage();
-            renderPlaylist();
-            updateSongCount();
-            console.log("Added:", file.name);
-            resolve();
-        };
-        reader.onerror = () => {
-            console.error("Error reading file:", file.name);
-            resolve();
-        };
-        reader.readAsDataURL(file);
     });
 }
 
@@ -160,11 +355,15 @@ picker.addEventListener("change", async (e) => {
         scanIndicator.classList.remove("hidden");
     }
 
-    // Process files sequentially to avoid memory issues
+    // Process files and save to IndexedDB
     for (const file of files) {
         await addFileToPlaylist(file);
     }
 
+    // Reload from DB to get IDs
+    await loadSongsFromDB();
+    renderPlaylist();
+    updateSongCount();
     finishScan();
 
     // Reset picker value to allow re-selecting same files
@@ -177,6 +376,7 @@ function finishScan() {
         scanIndicator.classList.add("hidden");
     }
     updateSongCount();
+    checkStorageQuota();
 
     // If this is the first song, auto-play it
     if (media.length > 0 && currentIndex === 0 && audio.src === '') {
@@ -387,33 +587,6 @@ function closePlayer() {
     updatePlayPauseButtons(false);
 }
 
-function saveToStorage() {
-    try {
-        localStorage.setItem("playlist", JSON.stringify(media));
-    } catch (err) {
-        console.error("Error saving to storage:", err);
-        // Clear old data if storage is full
-        if (err.name === 'QuotaExceededError') {
-            localStorage.removeItem("playlist");
-            alert("Storage full. Please remove some songs.");
-        }
-    }
-}
-
-function loadFromStorage() {
-    try {
-        const data = localStorage.getItem("playlist");
-        if (data) {
-            media = JSON.parse(data);
-            renderPlaylist();
-            updateSongCount();
-        }
-    } catch (err) {
-        console.error("Error loading from storage:", err);
-        localStorage.removeItem("playlist");
-    }
-}
-
 function updateSongCount() {
     const countEl = document.getElementById("songCount");
     if (countEl) {
@@ -428,8 +601,66 @@ function updateSongCount() {
     }
 }
 
+// Function to remove a song (can be called from UI)
+function removeSong(index) {
+    if (index < 0 || index >= media.length) return;
+
+    const song = media[index];
+    if (song && song.id) {
+        deleteSongFromDB(song.id)
+            .then(() => {
+                media.splice(index, 1);
+                if (currentIndex >= media.length) {
+                    currentIndex = Math.max(0, media.length - 1);
+                }
+                renderPlaylist();
+                updateSongCount();
+                checkStorageQuota();
+            })
+            .catch(err => console.error('Error removing song:', err));
+    }
+}
+
+// Function to clear all songs
+function clearAllSongs() {
+    if (confirm('Are you sure you want to remove all songs?')) {
+        clearAllSongsFromDB()
+            .then(() => {
+                media = [];
+                currentIndex = 0;
+                audio.src = '';
+                if (video) video.src = '';
+                renderPlaylist();
+                updateSongCount();
+                playerView.classList.add('hidden');
+                miniPlayer.classList.add('hidden');
+                checkStorageQuota();
+            })
+            .catch(err => console.error('Error clearing songs:', err));
+    }
+}
+
 // Initialize app
-loadFromStorage();
+async function initApp() {
+    try {
+        // Clear old localStorage data if exists
+        if (localStorage.getItem('playlist')) {
+            localStorage.removeItem('playlist');
+            console.log('Cleared old localStorage data');
+        }
+
+        await initDB();
+        await loadSongsFromDB();
+        renderPlaylist();
+        updateSongCount();
+        checkStorageQuota();
+        console.log('App initialized with', media.length, 'songs');
+    } catch (err) {
+        console.error('Error initializing app:', err);
+    }
+}
+
+initApp();
 
 // Service Worker Registration
 if ("serviceWorker" in navigator) {

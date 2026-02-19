@@ -29,6 +29,22 @@
     }
   ],
   "screenshots": [],
+  "file_handlers": [
+    {
+      "action": "/",
+      "accept": {
+        "audio/*": [
+          ".mp3",
+          ".wav",
+          ".ogg",
+          ".flac",
+          ".aac",
+          ".m4a",
+          ".wma"
+        ]
+      }
+    }
+  ],
   "shortcuts": [
     {
       "name": "Scan Music",
