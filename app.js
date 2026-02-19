@@ -29,8 +29,9 @@ window.addEventListener('beforeinstallprompt', (e) => {
     deferredPrompt = e;
     console.log('Install prompt available');
 
-    // Show install button if it exists
+    // Show install buttons
     showInstallButton();
+    showInstallButtonInEmptyState();
 });
 
 // Listen for successful installation
@@ -38,7 +39,23 @@ window.addEventListener('appinstalled', (e) => {
     console.log('App installed successfully');
     deferredPrompt = null;
     hideInstallButton();
+    hideInstallButtonInEmptyState();
 });
+
+// Function to manually prompt for installation (called from HTML button)
+window.promptInstall = async () => {
+    if (deferredPrompt) {
+        deferredPrompt.prompt();
+        const { outcome } = await deferredPrompt.userChoice;
+        console.log('Install prompt outcome:', outcome);
+        deferredPrompt = null;
+        hideInstallButton();
+        hideInstallButtonInEmptyState();
+    } else {
+        // Fallback: show instructions
+        alert('To install this app:\n\n• On Android: Tap the menu (⋮) and select "Add to Home Screen"\n• On iOS: Tap the share button and select "Add to Home Screen"');
+    }
+};
 
 function showInstallButton() {
     // Check if button already exists
@@ -72,6 +89,20 @@ function hideInstallButton() {
     if (installButton) {
         installButton.remove();
         installButton = null;
+    }
+}
+
+function showInstallButtonInEmptyState() {
+    const btn = document.getElementById('installBtnEmpty');
+    if (btn) {
+        btn.classList.remove('hidden');
+    }
+}
+
+function hideInstallButtonInEmptyState() {
+    const btn = document.getElementById('installBtnEmpty');
+    if (btn) {
+        btn.classList.add('hidden');
     }
 }
 
@@ -119,28 +150,29 @@ function saveSongToDB(file) {
             return;
         }
 
-        const reader = new FileReader();
-        reader.onload = () => {
-            const transaction = db.transaction([STORE_NAME], 'readwrite');
-            const store = transaction.objectStore(STORE_NAME);
+        // Create a direct URL reference to the file (doesn't copy the data)
+        // This streams the file directly from the source
+        const fileUrl = URL.createObjectURL(file);
 
-            const song = {
-                name: file.name,
-                type: file.type || getMediaType(file.name),
-                data: reader.result,
-                size: file.size,
-                dateAdded: Date.now()
-            };
+        const transaction = db.transaction([STORE_NAME], 'readwrite');
+        const store = transaction.objectStore(STORE_NAME);
 
-            const request = store.add(song);
-            request.onsuccess = () => {
-                console.log('Song saved to DB:', file.name);
-                resolve(request.result);
-            };
-            request.onerror = () => reject(request.error);
+        // Store file reference (name, type, URL) - NOT the actual file data
+        // This is much smaller and allows streaming directly from the source
+        const song = {
+            name: file.name,
+            type: file.type || getMediaType(file.name),
+            url: fileUrl,
+            size: file.size,
+            dateAdded: Date.now()
         };
-        reader.onerror = () => reject(new Error('Error reading file'));
-        reader.readAsDataURL(file);
+
+        const request = store.add(song);
+        request.onsuccess = () => {
+            console.log('File reference saved to DB:', file.name);
+            resolve(request.result);
+        };
+        request.onerror = () => reject(request.error);
     });
 }
 
@@ -306,7 +338,7 @@ function addFileToPlaylist(file) {
             return;
         }
 
-        // Save directly to IndexedDB
+        // Save the file URL reference to IndexedDB
         saveSongToDB(file)
             .then(async (id) => {
                 console.log('Added:', file.name, 'with ID:', id);
@@ -429,8 +461,11 @@ function play(i) {
     currentIndex = i;
     const item = media[i];
 
-    if (!item || !item.data) {
-        console.error("Invalid item or no data");
+    // Support both url (new) and data (old) for backwards compatibility
+    const source = item.url || item.data;
+
+    if (!item || !source) {
+        console.error("Invalid item or no source");
         return;
     }
 
@@ -444,7 +479,7 @@ function play(i) {
             video.style.display = "none";
             playerView.appendChild(video);
         }
-        video.src = item.data;
+        video.src = source;
         video.style.display = "block";
         video.play().catch(err => console.error("Video play error:", err));
 
@@ -453,7 +488,7 @@ function play(i) {
         if (coverContainer) coverContainer.style.display = "none";
     } else {
         // Audio playback
-        audio.src = item.data;
+        audio.src = source;
         audio.play().catch(err => {
             console.error("Audio play error:", err);
             alert("Unable to play this audio file. Please try another file.");
@@ -674,3 +709,5 @@ const urlParams = new URLSearchParams(window.location.search);
 if (urlParams.get('action') === 'scan') {
     setTimeout(() => scanDevice(), 500);
 }
+
+
