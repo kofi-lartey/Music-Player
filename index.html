@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Melody - Music Player</title>
+
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0a0a0f">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet">
+
+    <style>
+        * {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+        }
+
+        body {
+            background: linear-gradient(180deg, #0a0a0f 0%, #12121a 50%, #0d0d14 100%);
+            min-height: 100vh;
+        }
+
+        /* Ambient background effects */
+        .ambient-glow {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            pointer-events: none;
+            z-index: 0;
+            overflow: hidden;
+        }
+
+        .ambient-glow::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(ellipse at 30% 20%, rgba(139, 92, 246, 0.08) 0%, transparent 50%),
+                radial-gradient(ellipse at 70% 80%, rgba(99, 102, 241, 0.06) 0%, transparent 50%);
+        }
+
+        .glass {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .glass-strong {
+            background: rgba(18, 18, 26, 0.85);
+            backdrop-filter: blur(30px);
+            -webkit-backdrop-filter: blur(30px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        /* Song Card Styles */
+        .song-card {
+            background: linear-gradient(145deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0.01) 100%);
+            border: 1px solid rgba(255, 255, 255, 0.04);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .song-card:hover {
+            background: linear-gradient(145deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.02) 100%);
+            transform: translateY(-2px);
+            border-color: rgba(139, 92, 246, 0.2);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+
+        .song-card.playing {
+            background: linear-gradient(145deg, rgba(139, 92, 246, 0.15) 0%, rgba(99, 102, 241, 0.1) 100%);
+            border-color: rgba(139, 92, 246, 0.3);
+            box-shadow: 0 0 40px rgba(139, 92, 246, 0.15);
+        }
+
+        /* Glow Effects */
+        .glow-purple {
+            box-shadow: 0 0 60px rgba(139, 92, 246, 0.3);
+        }
+
+        .glow-indigo {
+            box-shadow: 0 0 40px rgba(99, 102, 241, 0.25);
+        }
+
+        /* Equalizer Animation */
+        .equalizer {
+            display: flex;
+            align-items: flex-end;
+            gap: 3px;
+            height: 24px;
+        }
+
+        .eq-bar {
+            width: 4px;
+            background: linear-gradient(to top, #8b5cf6, #a78bfa);
+            border-radius: 2px;
+            animation: equalize 0.6s ease-in-out infinite;
+        }
+
+        .eq-bar:nth-child(1) {
+            animation-delay: 0s;
+        }
+
+        .eq-bar:nth-child(2) {
+            animation-delay: 0.15s;
+        }
+
+        .eq-bar:nth-child(3) {
+            animation-delay: 0.3s;
+        }
+
+        .eq-bar:nth-child(4) {
+            animation-delay: 0.45s;
+        }
+
+        .eq-bar:nth-child(5) {
+            animation-delay: 0.6s;
+        }
+
+        @keyframes equalize {
+
+            0%,
+            100% {
+                height: 6px;
+            }
+
+            50% {
+                height: 20px;
+            }
+        }
+
+        /* Play Button */
+        .play-btn {
+            background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%);
+            box-shadow: 0 4px 20px rgba(139, 92, 246, 0.4);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .play-btn:hover {
+            transform: scale(1.08);
+            box-shadow: 0 6px 30px rgba(139, 92, 246, 0.5);
+        }
+
+        .play-btn:active {
+            transform: scale(0.98);
+        }
+
+        /* Control Buttons */
+        .control-btn {
+            transition: all 0.2s ease;
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .control-btn:hover {
+            transform: scale(1.1);
+            color: #a78bfa;
+        }
+
+        .control-btn:active {
+            transform: scale(0.95);
+        }
+
+        /* Action Buttons */
+        .action-btn {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.05) 100%);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: all 0.2s ease;
+        }
+
+        .action-btn:hover {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.15) 0%, rgba(255, 255, 255, 0.08) 100%);
+            border-color: rgba(139, 92, 246, 0.3);
+            transform: translateY(-1px);
+        }
+
+        .scan-btn {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
+            transition: all 0.2s ease;
+        }
+
+        .scan-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 25px rgba(16, 185, 129, 0.4);
+        }
+
+        /* Floating Add Button */
+        .fab {
+            position: fixed;
+            bottom: 100px;
+            right: 24px;
+            width: 56px;
+            height: 56px;
+            border-radius: 16px;
+            background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%);
+            box-shadow: 0 8px 32px rgba(139, 92, 246, 0.4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            z-index: 40;
+        }
+
+        .fab:hover {
+            transform: scale(1.1) rotate(90deg);
+            box-shadow: 0 12px 40px rgba(139, 92, 246, 0.5);
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 2px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        /* Progress Slider */
+        input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            height: 4px;
+            border-radius: 2px;
+            background: rgba(255, 255, 255, 0.1);
+            outline: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #8b5cf6 0%, #a78bfa 100%);
+            cursor: pointer;
+            box-shadow: 0 2px 10px rgba(139, 92, 246, 0.5);
+            transition: transform 0.2s ease;
+        }
+
+        input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+        }
+
+        /* Album Art Animation */
+        .album-art {
+            transition: all 0.5s ease;
+        }
+
+        .album-art.spinning {
+            animation: spin 20s linear infinite;
+        }
+
+        @keyframes spin {
+            from {
+                transform: rotate(0deg);
+            }
+
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* Vinyl effect */
+        .vinyl-effect {
+            position: absolute;
+            inset: 8px;
+            border-radius: 50%;
+            background: radial-gradient(circle at center, transparent 30%, rgba(0, 0, 0, 0.3) 31%, rgba(0, 0, 0, 0.3) 60%, transparent 61%);
+            pointer-events: none;
+        }
+
+        /* Pulse Animation */
+        .pulse-glow {
+            animation: pulse-glow 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse-glow {
+
+            0%,
+            100% {
+                box-shadow: 0 0 40px rgba(139, 92, 246, 0.3);
+            }
+
+            50% {
+                box-shadow: 0 0 60px rgba(139, 92, 246, 0.5);
+            }
+        }
+
+        /* Empty State */
+        .empty-state {
+            background: radial-gradient(circle at 50% 30%, rgba(139, 92, 246, 0.08) 0%, transparent 60%);
+        }
+
+        /* Mini Player */
+        .mini-player {
+            animation: slide-up 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        @keyframes slide-up {
+            from {
+                transform: translateY(100%);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        /* Full Player */
+        .player-bg {
+            background: linear-gradient(180deg, #0a0a0f 0%, #12121a 50%, #1a1a2e 100%);
+        }
+
+        .disc-container {
+            position: relative;
+            transition: transform 0.3s ease;
+        }
+
+        .disc-container.playing {
+            animation: spin 8s linear infinite;
+        }
+
+        .disc-grooves {
+            position: absolute;
+            inset: 0;
+            border-radius: 50%;
+            background: repeating-radial-gradient(circle at center,
+                    transparent 0px,
+                    transparent 2px,
+                    rgba(0, 0, 0, 0.1) 3px,
+                    transparent 4px);
+            pointer-events: none;
+        }
+
+        /* Ripple Effect */
+        .ripple {
+            position: absolute;
+            border-radius: 50%;
+            background: rgba(139, 92, 246, 0.4);
+            transform: scale(0);
+            animation: ripple 0.6s linear;
+            pointer-events: none;
+        }
+
+        @keyframes ripple {
+            to {
+                transform: scale(4);
+                opacity: 0;
+            }
+        }
+
+        /* Stagger animation for playlist items */
+        .song-card {
+            animation: fade-slide-in 0.3s ease forwards;
+            opacity: 0;
+        }
+
+        @keyframes fade-slide-in {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+    </style>
+</head>
+
+<body class="bg-transparent text-white min-h-screen flex flex-col overflow-hidden relative">
+
+    <!-- Ambient Background -->
+    <div class="ambient-glow"></div>
+
+    <!-- HEADER -->
+    <header class="relative z-10 p-5 flex justify-between items-center">
+        <div class="flex items-center space-x-4">
+            <div
+                class="w-12 h-12 rounded-2xl bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center shadow-lg shadow-violet-600/20">
+                <svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z" />
+                </svg>
+            </div>
+            <div>
+                <h1 class="text-xl font-bold tracking-tight">Melody</h1>
+                <p class="text-xs text-gray-500 font-medium" id="songCount">No songs yet</p>
+            </div>
+        </div>
+
+        <div class="flex items-center space-x-2">
+            <button onclick="scanDevice()"
+                class="scan-btn px-4 py-2.5 rounded-xl text-sm font-semibold flex items-center space-x-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                <span>Scan</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- SCANNING INDICATOR -->
+    <div id="scanIndicator" class="hidden relative z-10 px-5 py-3 bg-violet-600/10 border-b border-violet-500/20">
+        <div class="flex items-center justify-center space-x-3 text-violet-300">
+            <svg class="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
+                </path>
+            </svg>
+            <span class="text-sm font-medium">Scanning for media files...</span>
+        </div>
+    </div>
+
+    <!-- PLAYLIST -->
+    <main id="playlist" class="relative z-10 flex-1 overflow-y-auto px-4 pb-32 space-y-2">
+        <!-- Empty State -->
+        <div id="emptyState" class="empty-state flex flex-col items-center justify-center h-full text-center py-24">
+            <div class="relative mb-8">
+                <div
+                    class="w-32 h-32 rounded-full bg-gradient-to-br from-violet-500/20 to-indigo-500/20 flex items-center justify-center">
+                    <div
+                        class="w-24 h-24 rounded-full bg-gradient-to-br from-violet-600/30 to-indigo-600/30 flex items-center justify-center">
+                        <svg class="w-12 h-12 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                                d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
+                        </svg>
+                    </div>
+                </div>
+                <!-- Decorative rings -->
+                <div class="absolute inset-0 rounded-full border border-violet-500/20 animate-pulse"></div>
+            </div>
+            <h2 class="text-2xl font-bold text-white mb-2">Your library is empty</h2>
+            <p class="text-gray-500 mb-8 max-w-xs">Scan your device or add files to start listening to your favorite
+                music</p>
+            <div class="flex flex-col space-y-3">
+                <button onclick="scanDevice()" class="scan-btn px-8 py-3.5 rounded-xl font-semibold text-base">
+                    <span class="flex items-center justify-center space-x-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                        <span>Scan Device</span>
+                    </span>
+                </button>
+            </div>
+        </div>
+    </main>
+
+    <!-- MINI PLAYER -->
+    <div id="miniPlayer" class="hidden glass-strong fixed bottom-20 left-4 right-4 rounded-2xl p-3 z-40 mini-player">
+        <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-3 flex-1 min-w-0">
+                <div
+                    class="relative w-14 h-14 rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center flex-shrink-0 overflow-hidden">
+                    <svg class="w-6 h-6 text-white/80" fill="currentColor" viewBox="0 0 24 24">
+                        <path
+                            d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z" />
+                    </svg>
+                    <div class="vinyl-effect"></div>
+                </div>
+                <div class="flex-1 min-w-0 pr-2">
+                    <p id="miniTitle" class="text-sm font-semibold truncate"></p>
+                    <div class="w-full bg-white/10 h-1 mt-2 rounded-full overflow-hidden">
+                        <div id="miniProgress"
+                            class="bg-gradient-to-r from-violet-500 to-indigo-500 h-1 rounded-full transition-all duration-200"
+                            style="width: 0%"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex items-center space-x-1 ml-2">
+                <button onclick="prev()" class="control-btn p-3 rounded-xl">
+                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M6 6h2v12H6zm3.5 6l8.5 6V6z" />
+                    </svg>
+                </button>
+                <button onclick="toggle()" id="playPauseBtn"
+                    class="play-btn w-12 h-12 rounded-xl flex items-center justify-center">
+                    <svg id="playIcon" class="w-5 h-5 ml-0.5" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M8 5v14l11-7z" />
+                    </svg>
+                    <svg id="pauseIcon" class="w-5 h-5 hidden" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
+                    </svg>
+                </button>
+                <button onclick="next()" class="control-btn p-3 rounded-xl">
+                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" />
+                    </svg>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- FLOATING ADD BUTTON -->
+    <button onclick="openPicker()" class="fab">
+        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+        </svg>
+    </button>
+
+    <!-- FULL SCREEN PLAYER -->
+    <div id="playerView" class="hidden fixed inset-0 player-bg flex flex-col items-center justify-center px-6 z-50">
+
+        <!-- Close Button -->
+        <button onclick="closePlayer()"
+            class="absolute top-6 left-6 p-3 rounded-full bg-white/5 hover:bg-white/10 transition-all">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+            </svg>
+        </button>
+
+        <!-- Album Art / Disc -->
+        <div class="disc-container relative mb-10" id="discContainer">
+            <div class="w-72 h-72 rounded-full bg-gradient-to-br from-violet-600 via-indigo-600 to-purple-600 flex items-center justify-center glow-purple pulse-glow shadow-2xl"
+                id="coverContainer">
+                <div class="w-20 h-20 rounded-full bg-black/30 flex items-center justify-center">
+                    <div class="w-8 h-8 rounded-full bg-black/50"></div>
+                </div>
+                <div class="disc-grooves"></div>
+            </div>
+            <img id="cover" class="hidden absolute inset-0 w-72 h-72 rounded-full object-cover shadow-2xl"
+                style="animation: spin 8s linear infinite;">
+        </div>
+
+        <!-- Track Info -->
+        <h2 id="title" class="text-2xl font-bold text-center mb-2 max-w-xs truncate"></h2>
+        <p id="artist" class="text-gray-400 text-sm mb-10">Now Playing</p>
+
+        <!-- Progress Bar -->
+        <div class="w-full max-w-md mb-8">
+            <input type="range" id="progress" class="w-full" value="0">
+            <div class="flex justify-between text-xs text-gray-500 mt-2">
+                <span id="currentTime">0:00</span>
+                <span id="totalTime">0:00</span>
+            </div>
+        </div>
+
+        <!-- Playback Controls -->
+        <div class="flex items-center justify-center space-x-6">
+            <button onclick="prev()" class="control-btn p-4 rounded-2xl">
+                <svg class="w-7 h-7" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M6 6h2v12H6zm3.5 6l8.5 6V6z" />
+                </svg>
+            </button>
+            <button onclick="toggle()" id="fullPlayPauseBtn"
+                class="play-btn w-18 h-18 rounded-full flex items-center justify-center w-18 h-18">
+                <svg id="fullPlayIcon" class="w-8 h-8 ml-1" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M8 5v14l11-7z" />
+                </svg>
+                <svg id="fullPauseIcon" class="w-8 h-8 hidden" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
+                </svg>
+            </button>
+            <button onclick="next()" class="control-btn p-4 rounded-2xl">
+                <svg class="w-7 h-7" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" />
+                </svg>
+            </button>
+        </div>
+
+        <!-- Equalizer -->
+        <div class="equalizer mt-12">
+            <div class="eq-bar"></div>
+            <div class="eq-bar"></div>
+            <div class="eq-bar"></div>
+            <div class="eq-bar"></div>
+            <div class="eq-bar"></div>
+        </div>
+    </div>
+
+    <input type="file" id="picker" multiple accept="audio/*,video/*" hidden>
+
+    <script src="app.js"></script>
+</body>
+
+</html>
