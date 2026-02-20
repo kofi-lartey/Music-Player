@@ -356,6 +356,71 @@
             transform: scale(0.98);
         }
 
+        /* Mobile Responsive */
+        @media (max-width: 640px) {
+            .welcome-screen {
+                padding: 1rem;
+            }
+
+            .welcome-screen .mode-btn {
+                padding: 1rem;
+            }
+
+            .welcome-screen .mode-btn .w-14 {
+                width: 3rem;
+                height: 3rem;
+            }
+
+            .welcome-screen h1 {
+                font-size: 1.5rem;
+            }
+
+            header {
+                padding: 0.75rem;
+                flex-wrap: wrap;
+                gap: 0.5rem;
+            }
+
+            header h1 {
+                font-size: 1.125rem;
+            }
+
+            header .flex.items-center.space-x-2 {
+                gap: 0.25rem;
+            }
+
+            header .action-btn,
+            header .scan-btn {
+                padding: 0.5rem;
+            }
+
+            header .action-btn span,
+            header .scan-btn span {
+                display: none;
+            }
+
+            header .action-btn svg,
+            header .scan-btn svg {
+                width: 1.25rem;
+                height: 1.25rem;
+            }
+
+            main {
+                padding-left: 0.75rem;
+                padding-right: 0.75rem;
+            }
+
+            .song-card {
+                padding: 0.75rem;
+            }
+
+            .mini-player {
+                left: 0.5rem;
+                right: 0.5rem;
+                bottom: 5rem;
+            }
+        }
+
         .disc-grooves {
             position: absolute;
             inset: 0;
