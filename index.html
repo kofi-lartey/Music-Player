@@ -561,7 +561,7 @@
             </svg>
         </button>
 
-        <!-- Album Art / Disc -->
+        <!-- Album Art / Disc (for audio only) -->
         <div class="disc-container relative mb-10" id="discContainer">
             <div class="w-72 h-72 rounded-full bg-gradient-to-br from-violet-600 via-indigo-600 to-purple-600 flex items-center justify-center glow-purple pulse-glow shadow-2xl"
                 id="coverContainer">
@@ -617,6 +617,31 @@
             <div class="eq-bar"></div>
             <div class="eq-bar"></div>
             <div class="eq-bar"></div>
+        </div>
+    </div>
+
+    <!-- DEDICATED VIDEO PLAYER -->
+    <div id="videoPlayerView" class="hidden fixed inset-0 bg-black flex flex-col z-50">
+        <!-- Header with close button -->
+        <div class="flex items-center justify-between p-4 bg-gradient-to-b from-black/80 to-transparent">
+            <button onclick="closeVideoPlayer()" class="p-2 rounded-full bg-white/10 hover:bg-white/20 transition-all">
+                <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+            <h2 id="videoTitle" class="text-white text-lg font-semibold truncate mx-4"></h2>
+            <div class="w-10"></div>
+        </div>
+
+        <!-- Video Container -->
+        <div class="flex-1 flex items-center justify-center bg-black">
+            <video id="fullscreenVideo" class="max-h-full max-w-full" controls playsinline>
+            </video>
+        </div>
+
+        <!-- Mini Controls at bottom -->
+        <div class="bg-gradient-to-t from-black/80 to-transparent p-4">
+            <h3 id="videoTitleBottom" class="text-white text-center font-medium"></h3>
         </div>
     </div>
 

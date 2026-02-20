@@ -16,6 +16,39 @@ let currentIndex = 0;
 
 const audio = new Audio();
 let video;
+let fullscreenVideo;
+
+// Get reference to fullscreen video player
+function getFullscreenVideo() {
+    if (!fullscreenVideo) {
+        fullscreenVideo = document.getElementById('fullscreenVideo');
+
+        // Add event listeners
+        fullscreenVideo.addEventListener('ended', () => {
+            next();
+        });
+
+        fullscreenVideo.addEventListener('error', (e) => {
+            console.error('Fullscreen video error:', fullscreenVideo.error);
+            alert('Unable to play this video file. The format may not be supported.');
+        });
+    }
+    return fullscreenVideo;
+}
+
+// Close video player function
+function closeVideoPlayer() {
+    const videoPlayerView = document.getElementById('videoPlayerView');
+    const videoEl = getFullscreenVideo();
+    if (videoEl) {
+        videoEl.pause();
+        videoEl.src = '';
+    }
+    if (videoPlayerView) {
+        videoPlayerView.classList.add('hidden');
+    }
+    // Resume mini player for audio if needed
+}
 
 // PWA Install prompt
 let deferredPrompt;
@@ -198,12 +231,27 @@ function loadSongsFromDB() {
                 }
                 // New format: create blob URL from stored ArrayBuffer data
                 if (song.data) {
-                    const blob = new Blob([song.data], { type: song.type });
-                    const url = URL.createObjectURL(blob);
-                    return {
-                        ...song,
-                        url: url // Use URL for playback
-                    };
+                    try {
+                        // Determine the correct MIME type
+                        let mimeType = song.type || 'audio/mpeg';
+                        // If type is audio/mpeg but file is video, adjust
+                        if (song.name) {
+                            const ext = song.name.toLowerCase().split('.').pop();
+                            if (['mp4', 'webm', 'mkv', 'avi', 'mov', 'm4v', '3gp'].includes(ext)) {
+                                mimeType = 'video/' + (ext === 'mp4' ? 'mp4' : ext === 'webm' ? 'webm' : 'mp4');
+                            }
+                        }
+                        const blob = new Blob([song.data], { type: mimeType });
+                        const url = URL.createObjectURL(blob);
+                        return {
+                            ...song,
+                            type: mimeType,
+                            url: url // Use URL for playback
+                        };
+                    } catch (err) {
+                        console.error('Error creating blob URL:', err);
+                        return song;
+                    }
                 }
                 return song;
             });
@@ -496,47 +544,24 @@ function play(i) {
     console.log("Playing:", item.name, "Type:", item.type);
 
     if (item.type && item.type.startsWith("video")) {
-        if (!video) {
-            video = document.createElement("video");
-            video.controls = true;
-            video.className = "w-full";
-            video.style.display = "none";
-            playerView.appendChild(video);
+        // Use dedicated fullscreen video player
+        const videoEl = getFullscreenVideo();
+        const videoPlayerView = document.getElementById('videoPlayerView');
+        const videoTitle = document.getElementById('videoTitle');
+        const videoTitleBottom = document.getElementById('videoTitleBottom');
 
-            // Add video event listeners
-            video.addEventListener('error', (e) => {
-                console.error('Video error:', video.error);
-                alert('Unable to play this video file. The format may not be supported.');
-            });
+        videoEl.src = source;
+        videoPlayerView.classList.remove('hidden');
+        videoTitle.textContent = item.name;
+        videoTitleBottom.textContent = item.name;
 
-            video.addEventListener('loadedmetadata', () => {
-                console.log('Video loaded, duration:', video.duration);
-                updateTimeDisplay(video.currentTime, video.duration);
-            });
-
-            video.addEventListener('timeupdate', () => {
-                if (video.duration && isFinite(video.duration)) {
-                    const percent = (video.currentTime / video.duration) * 100;
-                    progress.value = percent;
-                    miniProgress.style.width = percent + "%";
-                    updateTimeDisplay(video.currentTime, video.duration);
-                }
-            });
-
-            video.addEventListener('ended', () => {
-                next();
-            });
-        }
-        video.src = source;
-        video.style.display = "block";
-        video.play().catch(err => {
+        videoEl.play().catch(err => {
             console.error("Video play error:", err);
             alert("Unable to play this video file. Please try another file.");
         });
 
-        // Hide disc for video
-        const coverContainer = document.getElementById("coverContainer");
-        if (coverContainer) coverContainer.style.display = "none";
+        // Don't show audio player UI for video
+        playerView.classList.add("hidden");
     } else {
         // Audio playback
         audio.src = source;
@@ -551,13 +576,20 @@ function play(i) {
     }
 
     miniPlayer.classList.remove("hidden");
-    playerView.classList.remove("hidden");
 
-    titleEl.textContent = item.name;
+    const isVideo = item.type && item.type.startsWith("video");
+
+    // Only show audio player UI for audio, not for video
+    if (!isVideo) {
+        playerView.classList.remove("hidden");
+        titleEl.textContent = item.name;
+    } else {
+        playerView.classList.add("hidden");
+    }
+
     miniTitle.textContent = item.name;
 
     // Update mini player icon
-    const isVideo = item.type && item.type.startsWith("video");
     const miniIcon = document.getElementById("miniIcon");
     if (miniIcon) miniIcon.textContent = isVideo ? "🎬" : "🎵";
 
@@ -583,13 +615,15 @@ function toggle() {
 
     const isVideo = item.type && item.type.startsWith("video");
 
-    if (isVideo && video) {
-        if (video.paused) {
-            video.play();
-            updatePlayPauseButtons(true);
-        } else {
-            video.pause();
-            updatePlayPauseButtons(false);
+    if (isVideo) {
+        // Handle dedicated video player
+        const videoEl = getFullscreenVideo();
+        if (videoEl) {
+            if (videoEl.paused) {
+                videoEl.play();
+            } else {
+                videoEl.pause();
+            }
         }
     } else if (audio.src) {
         if (audio.paused) {
@@ -677,9 +711,9 @@ function closePlayer() {
     if (audio.src) {
         audio.pause();
     }
-    if (video) {
-        video.pause();
-    }
+    // Close dedicated video player if open
+    closeVideoPlayer();
+
     playerView.classList.add("hidden");
     updatePlayPauseButtons(false);
 
@@ -729,11 +763,8 @@ function removeSong(index) {
                 if (isCurrentSong) {
                     audio.pause();
                     audio.src = '';
-                    if (video) {
-                        video.pause();
-                        video.src = '';
-                        video.style.display = 'none';
-                    }
+                    // Close dedicated video player
+                    closeVideoPlayer();
                     miniPlayer.classList.add('hidden');
                     playerView.classList.add('hidden');
                     updatePlayPauseButtons(false);
