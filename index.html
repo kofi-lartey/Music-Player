@@ -418,6 +418,16 @@
         </div>
 
         <div class="flex items-center space-x-2">
+            <button onclick="clearAllSongs()" id="clearAllBtn"
+                class="action-btn px-3 py-2 rounded-xl text-xs font-medium flex items-center space-x-1.5 hidden"
+                title="Clear all songs">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16">
+                    </path>
+                </svg>
+                <span>Clear</span>
+            </button>
             <button onclick="scanDevice()"
                 class="scan-btn px-4 py-2.5 rounded-xl text-sm font-semibold flex items-center space-x-2">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -474,7 +484,8 @@
                     </span>
                 </button>
                 <!-- Install App Button -->
-                <button id="installBtnEmpty" onclick="promptInstall()" class="scan-btn px-8 py-3.5 rounded-xl font-semibold text-base hidden">
+                <button id="installBtnEmpty" onclick="promptInstall()"
+                    class="scan-btn px-8 py-3.5 rounded-xl font-semibold text-base hidden">
                     <span class="flex items-center justify-center space-x-2">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"

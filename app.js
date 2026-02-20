@@ -442,6 +442,11 @@ function renderPlaylist() {
                 <p class="font-medium truncate">${item.name}</p>
                 <p class="text-xs text-gray-500">${isVideo ? 'Video' : 'Audio'}</p>
             </div>
+            <button class="delete-btn p-2 rounded-lg hover:bg-red-500/20 text-gray-400 hover:text-red-400 transition-all" onclick="event.stopPropagation(); removeSong(${i});" title="Remove song">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                </svg>
+            </button>
             ${i === currentIndex ? `
                 <div class="equalizer flex items-end space-x-1 h-6">
                     <div class="eq-bar w-1 bg-violet-400 rounded-full" style="height: 8px; animation-delay: 0s;"></div>
@@ -466,6 +471,7 @@ function play(i) {
 
     if (!item || !source) {
         console.error("Invalid item or no source");
+        alert("Cannot access this file. It may have been moved or deleted. Please re-add the file.");
         return;
     }
 
@@ -624,14 +630,18 @@ function closePlayer() {
 
 function updateSongCount() {
     const countEl = document.getElementById("songCount");
+    const clearBtn = document.getElementById("clearAllBtn");
     if (countEl) {
         const count = media.length;
         if (count === 0) {
             countEl.textContent = "No songs yet";
+            if (clearBtn) clearBtn.classList.add("hidden");
         } else if (count === 1) {
             countEl.textContent = "1 song";
+            if (clearBtn) clearBtn.classList.remove("hidden");
         } else {
             countEl.textContent = `${count} songs`;
+            if (clearBtn) clearBtn.classList.remove("hidden");
         }
     }
 }
@@ -642,11 +652,22 @@ function removeSong(index) {
 
     const song = media[index];
     if (song && song.id) {
+        // Revoke the blob URL to free memory
+        if (song.url) {
+            URL.revokeObjectURL(song.url);
+        }
         deleteSongFromDB(song.id)
             .then(() => {
                 media.splice(index, 1);
                 if (currentIndex >= media.length) {
                     currentIndex = Math.max(0, media.length - 1);
+                }
+                // Stop playback if the current song was removed
+                if (audio.src && index === currentIndex) {
+                    audio.pause();
+                    audio.src = '';
+                    miniPlayer.classList.add('hidden');
+                    playerView.classList.add('hidden');
                 }
                 renderPlaylist();
                 updateSongCount();
@@ -659,12 +680,22 @@ function removeSong(index) {
 // Function to clear all songs
 function clearAllSongs() {
     if (confirm('Are you sure you want to remove all songs?')) {
+        // Revoke all blob URLs to free memory
+        media.forEach(song => {
+            if (song.url) {
+                URL.revokeObjectURL(song.url);
+            }
+        });
         clearAllSongsFromDB()
             .then(() => {
                 media = [];
                 currentIndex = 0;
+                audio.pause();
                 audio.src = '';
-                if (video) video.src = '';
+                if (video) {
+                    video.pause();
+                    video.src = '';
+                }
                 renderPlaylist();
                 updateSongCount();
                 playerView.classList.add('hidden');
