@@ -150,29 +150,30 @@ function saveSongToDB(file) {
             return;
         }
 
-        // Create a direct URL reference to the file (doesn't copy the data)
-        // This streams the file directly from the source
-        const fileUrl = URL.createObjectURL(file);
+        // Read file as ArrayBuffer for persistent storage
+        const reader = new FileReader();
+        reader.onload = function () {
+            const transaction = db.transaction([STORE_NAME], 'readwrite');
+            const store = transaction.objectStore(STORE_NAME);
 
-        const transaction = db.transaction([STORE_NAME], 'readwrite');
-        const store = transaction.objectStore(STORE_NAME);
+            // Store actual file data (not just URL reference)
+            const song = {
+                name: file.name,
+                type: file.type || getMediaType(file.name),
+                data: reader.result, // ArrayBuffer - persists across sessions
+                size: file.size,
+                dateAdded: Date.now()
+            };
 
-        // Store file reference (name, type, URL) - NOT the actual file data
-        // This is much smaller and allows streaming directly from the source
-        const song = {
-            name: file.name,
-            type: file.type || getMediaType(file.name),
-            url: fileUrl,
-            size: file.size,
-            dateAdded: Date.now()
+            const request = store.add(song);
+            request.onsuccess = () => {
+                console.log('File data saved to DB:', file.name);
+                resolve(request.result);
+            };
+            request.onerror = () => reject(request.error);
         };
-
-        const request = store.add(song);
-        request.onsuccess = () => {
-            console.log('File reference saved to DB:', file.name);
-            resolve(request.result);
-        };
-        request.onerror = () => reject(request.error);
+        reader.onerror = () => reject(reader.error);
+        reader.readAsArrayBuffer(file);
     });
 }
 
@@ -188,7 +189,24 @@ function loadSongsFromDB() {
         const request = store.getAll();
 
         request.onsuccess = () => {
-            media = request.result || [];
+            const songs = request.result || [];
+            // Handle both old format (url) and new format (data)
+            media = songs.map(song => {
+                // If old format with URL, use it directly
+                if (song.url && !song.data) {
+                    return { ...song };
+                }
+                // New format: create blob URL from stored ArrayBuffer data
+                if (song.data) {
+                    const blob = new Blob([song.data], { type: song.type });
+                    const url = URL.createObjectURL(blob);
+                    return {
+                        ...song,
+                        url: url // Use URL for playback
+                    };
+                }
+                return song;
+            });
             console.log('Loaded', media.length, 'songs from DB');
             resolve(media);
         };
@@ -484,10 +502,37 @@ function play(i) {
             video.className = "w-full";
             video.style.display = "none";
             playerView.appendChild(video);
+
+            // Add video event listeners
+            video.addEventListener('error', (e) => {
+                console.error('Video error:', video.error);
+                alert('Unable to play this video file. The format may not be supported.');
+            });
+
+            video.addEventListener('loadedmetadata', () => {
+                console.log('Video loaded, duration:', video.duration);
+                updateTimeDisplay(video.currentTime, video.duration);
+            });
+
+            video.addEventListener('timeupdate', () => {
+                if (video.duration && isFinite(video.duration)) {
+                    const percent = (video.currentTime / video.duration) * 100;
+                    progress.value = percent;
+                    miniProgress.style.width = percent + "%";
+                    updateTimeDisplay(video.currentTime, video.duration);
+                }
+            });
+
+            video.addEventListener('ended', () => {
+                next();
+            });
         }
         video.src = source;
         video.style.display = "block";
-        video.play().catch(err => console.error("Video play error:", err));
+        video.play().catch(err => {
+            console.error("Video play error:", err);
+            alert("Unable to play this video file. Please try another file.");
+        });
 
         // Hide disc for video
         const coverContainer = document.getElementById("coverContainer");
@@ -516,10 +561,14 @@ function play(i) {
     const miniIcon = document.getElementById("miniIcon");
     if (miniIcon) miniIcon.textContent = isVideo ? "🎬" : "🎵";
 
-    // Update disc animation
+    // Update disc animation (only for audio)
     const discContainer = document.getElementById("discContainer");
     if (discContainer) {
-        discContainer.classList.add("playing");
+        if (isVideo) {
+            discContainer.classList.remove("playing");
+        } else {
+            discContainer.classList.add("playing");
+        }
     }
 
     // Update play button state
@@ -583,26 +632,33 @@ function prev() {
 }
 
 progress.addEventListener("input", () => {
-    if (audio.duration && isFinite(audio.duration)) {
+    const item = media[currentIndex];
+    const isVideo = item && item.type && item.type.startsWith("video");
+
+    if (isVideo && video && video.duration && isFinite(video.duration)) {
+        video.currentTime = (progress.value / 100) * video.duration;
+    } else if (audio.duration && isFinite(audio.duration)) {
         audio.currentTime = (progress.value / 100) * audio.duration;
     }
 });
 
+// Time update handler for audio
 audio.addEventListener("timeupdate", () => {
     if (audio.duration && isFinite(audio.duration)) {
         const percent = (audio.currentTime / audio.duration) * 100;
         progress.value = percent;
         miniProgress.style.width = percent + "%";
-
-        // Update time display
-        const current = formatTime(audio.currentTime);
-        const total = formatTime(audio.duration);
-        const currentTimeEl = document.getElementById("currentTime");
-        const totalTimeEl = document.getElementById("totalTime");
-        if (currentTimeEl) currentTimeEl.textContent = current;
-        if (totalTimeEl) totalTimeEl.textContent = total;
+        updateTimeDisplay(audio.currentTime, audio.duration);
     }
 });
+
+// Helper function to update time display
+function updateTimeDisplay(current, total) {
+    const currentTimeEl = document.getElementById("currentTime");
+    const totalTimeEl = document.getElementById("totalTime");
+    if (currentTimeEl) currentTimeEl.textContent = formatTime(current);
+    if (totalTimeEl) totalTimeEl.textContent = formatTime(total);
+}
 
 // Handle audio ending - play next
 audio.addEventListener("ended", () => {
@@ -626,6 +682,10 @@ function closePlayer() {
     }
     playerView.classList.add("hidden");
     updatePlayPauseButtons(false);
+
+    // Stop disc animation
+    const discContainer = document.getElementById("discContainer");
+    if (discContainer) discContainer.classList.remove("playing");
 }
 
 function updateSongCount() {
@@ -651,6 +711,8 @@ function removeSong(index) {
     if (index < 0 || index >= media.length) return;
 
     const song = media[index];
+    const isCurrentSong = index === currentIndex;
+
     if (song && song.id) {
         // Revoke the blob URL to free memory
         if (song.url) {
@@ -662,12 +724,19 @@ function removeSong(index) {
                 if (currentIndex >= media.length) {
                     currentIndex = Math.max(0, media.length - 1);
                 }
+
                 // Stop playback if the current song was removed
-                if (audio.src && index === currentIndex) {
+                if (isCurrentSong) {
                     audio.pause();
                     audio.src = '';
+                    if (video) {
+                        video.pause();
+                        video.src = '';
+                        video.style.display = 'none';
+                    }
                     miniPlayer.classList.add('hidden');
                     playerView.classList.add('hidden');
+                    updatePlayPauseButtons(false);
                 }
                 renderPlaylist();
                 updateSongCount();
