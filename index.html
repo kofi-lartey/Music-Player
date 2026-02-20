@@ -41,7 +41,6 @@
             bottom: 0;
             pointer-events: none;
             z-index: 0;
-            overflow: hidden;
         }
 
         .ambient-glow::before {
@@ -397,7 +396,7 @@
     </style>
 </head>
 
-<body class="bg-transparent text-white min-h-screen flex flex-col overflow-hidden relative">
+<body class="bg-transparent text-white min-h-screen flex flex-col overflow-y-auto relative">
 
     <!-- Ambient Background -->
     <div class="ambient-glow"></div>
