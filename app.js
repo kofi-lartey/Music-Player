@@ -13,12 +13,15 @@ const miniProgress = document.getElementById("miniProgress");
 
 let media = [];
 let currentIndex = 0;
+let currentMode = 'audio'; // 'audio' or 'video'
 
 const audio = new Audio();
 let video;
 let fullscreenVideo;
 
 // Get reference to fullscreen video player
+let videoErrorShown = false; // Track if we should show the error
+
 function getFullscreenVideo() {
     if (!fullscreenVideo) {
         fullscreenVideo = document.getElementById('fullscreenVideo');
@@ -29,8 +32,12 @@ function getFullscreenVideo() {
         });
 
         fullscreenVideo.addEventListener('error', (e) => {
-            console.error('Fullscreen video error:', fullscreenVideo.error);
-            alert('Unable to play this video file. The format may not be supported.');
+            console.log('Video element error event fired');
+            videoErrorShown = false;
+        });
+
+        fullscreenVideo.addEventListener('loadstart', () => {
+            videoErrorShown = true;
         });
     }
     return fullscreenVideo;
@@ -41,6 +48,8 @@ function closeVideoPlayer() {
     const videoPlayerView = document.getElementById('videoPlayerView');
     const videoEl = getFullscreenVideo();
     if (videoEl) {
+        // Set flag to prevent error alert when closing
+        videoErrorShown = false;
         videoEl.pause();
         videoEl.src = '';
     }
@@ -150,6 +159,224 @@ const DB_NAME = 'MusicPlayerDB';
 const DB_VERSION = 1;
 const STORE_NAME = 'songs';
 
+// Check if welcome screen should be shown
+function shouldShowWelcome() {
+    return !localStorage.getItem('melody_mode_selected');
+}
+
+// Show welcome screen
+function showWelcomeScreen() {
+    const welcomeScreen = document.getElementById('welcomeScreen');
+    if (welcomeScreen) {
+        welcomeScreen.classList.remove('hidden');
+    }
+}
+
+// Hide welcome screen
+function hideWelcomeScreen() {
+    const welcomeScreen = document.getElementById('welcomeScreen');
+    if (welcomeScreen) {
+        welcomeScreen.classList.add('hidden');
+    }
+}
+
+// Select mode (audio or video)
+function selectMode(mode) {
+    currentMode = mode;
+    localStorage.setItem('melody_mode_selected', 'true');
+    localStorage.setItem('melody_current_mode', mode);
+
+    hideWelcomeScreen();
+
+    // Update header and file picker for the selected mode
+    updateHeaderForMode();
+    updateFilePickerForMode();
+
+    // Navigate to the appropriate page
+    navigateToPage();
+
+    // Show notification for automatic scan
+    const modeText = mode === 'audio' ? 'music' : 'movies';
+    showScanNotification(`Scanning for ${modeText}...`);
+
+    // Trigger automatic scan
+    setTimeout(() => {
+        openPicker();
+    }, 1500);
+}
+
+// Skip welcome screen
+function skipWelcome() {
+    localStorage.setItem('melody_mode_selected', 'true');
+    hideWelcomeScreen();
+}
+
+// Switch between audio and video mode
+function switchMode() {
+    const currentMode = getCurrentMode();
+    const newMode = currentMode === 'audio' ? 'video' : 'audio';
+
+    // Update mode in localStorage
+    localStorage.setItem('melody_current_mode', newMode);
+
+    // Update header and file picker
+    updateHeaderForMode();
+    updateFilePickerForMode();
+
+    // Show brief notification (without spinner)
+    const modeText = newMode === 'audio' ? 'music' : 'movies';
+    showSwitchNotification(`Switched to ${modeText} mode`);
+}
+
+// Show home screen (welcome screen)
+function showHomeScreen() {
+    showWelcomeScreen();
+}
+
+// Navigate to Music or Movies page based on mode
+function navigateToPage() {
+    const mode = getCurrentMode();
+    const musicPage = document.getElementById('playlist');
+    const moviesPage = document.getElementById('moviesPage');
+    const header = document.querySelector('header');
+
+    if (mode === 'video') {
+        // Show Movies page
+        if (musicPage) musicPage.classList.add('hidden');
+        if (moviesPage) moviesPage.classList.remove('hidden');
+        renderMoviesList();
+    } else {
+        // Show Music page
+        if (moviesPage) moviesPage.classList.add('hidden');
+        if (musicPage) musicPage.classList.remove('hidden');
+        renderPlaylist();
+    }
+}
+
+// Render movies list
+function renderMoviesList() {
+    const moviesList = document.getElementById('moviesList');
+    const emptyState = document.getElementById('emptyMoviesState');
+
+    if (!moviesList) return;
+
+    // Filter only videos - check both type and extension
+    const videos = media.filter(item => {
+        if (item.type && item.type.startsWith('video')) return true;
+        // Also check by extension
+        const ext = item.name ? item.name.toLowerCase().split('.').pop() : '';
+        const videoExts = ['mp4', 'webm', 'mkv', 'avi', 'mov', 'm4v', '3gp'];
+        return videoExts.includes(ext);
+    });
+
+    if (emptyState) {
+        emptyState.classList.toggle('hidden', videos.length > 0);
+    }
+
+    moviesList.innerHTML = '';
+
+    videos.forEach((item, i) => {
+        const div = document.createElement('div');
+        div.className = `song-card p-4 rounded-xl cursor-pointer flex items-center space-x-4 ${i === currentIndex ? 'playing' : ''}`;
+        div.innerHTML = `
+            <div class="w-12 h-12 rounded-lg bg-gradient-to-br from-indigo-600/30 to-blue-600/30 flex items-center justify-center flex-shrink-0">
+                <span class="text-xl">🎬</span>
+            </div>
+            <div class="flex-1 min-w-0">
+                <p class="font-medium truncate">${item.name}</p>
+                <p class="text-xs text-gray-500">Video</p>
+            </div>
+            <button class="delete-btn p-2 rounded-lg hover:bg-red-500/20 text-gray-400 hover:text-red-400 transition-all" onclick="event.stopPropagation(); removeSong(${i});" title="Remove">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                </svg>
+            </button>
+        `;
+        div.onclick = () => play(i);
+        moviesList.appendChild(div);
+    });
+}
+
+// Show switch notification (without spinner)
+function showSwitchNotification(message) {
+    const scanIndicator = document.getElementById('scanIndicator');
+    if (scanIndicator) {
+        scanIndicator.innerHTML = `
+            <div class="flex items-center justify-center space-x-3 text-violet-300">
+                <span class="text-sm font-medium">${message}</span>
+            </div>
+        `;
+        scanIndicator.classList.remove('hidden');
+
+        // Hide after 2 seconds
+        setTimeout(() => {
+            scanIndicator.classList.add('hidden');
+        }, 2000);
+    }
+}
+
+// Show scan notification
+function showScanNotification(message) {
+    const scanIndicator = document.getElementById('scanIndicator');
+    if (scanIndicator) {
+        scanIndicator.innerHTML = `
+            <div class="flex items-center justify-center space-x-3 text-violet-300">
+                <svg class="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span class="text-sm font-medium">${message}</span>
+            </div>
+        `;
+        scanIndicator.classList.remove('hidden');
+    }
+}
+
+// Get current mode
+function getCurrentMode() {
+    return localStorage.getItem('melody_current_mode') || 'audio';
+}
+
+// Update file picker accept attribute based on mode
+function updateFilePickerForMode() {
+    const picker = document.getElementById('picker');
+    if (!picker) return;
+
+    const mode = getCurrentMode();
+
+    if (mode === 'video') {
+        // Video mode - only show video files
+        picker.accept = 'video/*,.mp4,.webm,.mkv,.avi,.mov,.m4v,.3gp';
+    } else {
+        // Audio mode - only show audio files
+        picker.accept = 'audio/*,.mp3,.wav,.ogg,.flac,.aac,.m4a,.wma,.opus';
+    }
+}
+
+// Update header based on current mode
+function updateHeaderForMode() {
+    const mode = getCurrentMode();
+    const titleEl = document.querySelector('header h1');
+    const songCountEl = document.getElementById('songCount');
+    const modeToggleText = document.getElementById('modeToggleText');
+
+    if (titleEl) {
+        titleEl.textContent = mode === 'video' ? 'Movies' : 'Melody';
+    }
+    if (songCountEl) {
+        const count = media.length;
+        if (mode === 'video') {
+            songCountEl.textContent = count === 1 ? '1 movie' : count + ' movies';
+        } else {
+            songCountEl.textContent = count === 1 ? '1 song' : count + ' songs';
+        }
+    }
+    // Update toggle button text
+    if (modeToggleText) {
+        modeToggleText.textContent = mode === 'audio' ? 'Movies' : 'Music';
+    }
+}
+
 function initDB() {
     return new Promise((resolve, reject) => {
         const request = indexedDB.open(DB_NAME, DB_VERSION);
@@ -189,10 +416,33 @@ function saveSongToDB(file) {
             const transaction = db.transaction([STORE_NAME], 'readwrite');
             const store = transaction.objectStore(STORE_NAME);
 
+            // Determine the correct MIME type based on file extension
+            let mimeType = file.type || getMediaType(file.name);
+
+            // Check current mode to force correct type
+            const mode = getCurrentMode();
+            const ext = file.name ? file.name.toLowerCase().split('.').pop() : '';
+            const audioExts = ['mp3', 'wav', 'ogg', 'flac', 'aac', 'm4a', 'wma', 'opus'];
+            const videoExts = ['mp4', 'webm', 'mkv', 'avi', 'mov', 'm4v', '3gp'];
+
+            if (mode === 'video') {
+                // In video mode, force video type for known video extensions
+                if (videoExts.includes(ext)) {
+                    if (ext === 'mp4') mimeType = 'video/mp4';
+                    else if (ext === 'webm') mimeType = 'video/webm';
+                    else mimeType = 'video/mp4'; // Default for other video formats
+                }
+            } else {
+                // In audio mode, force audio type for known audio extensions
+                if (audioExts.includes(ext) && (!file.type || file.type === '')) {
+                    mimeType = getMediaType(file.name);
+                }
+            }
+
             // Store actual file data (not just URL reference)
             const song = {
                 name: file.name,
-                type: file.type || getMediaType(file.name),
+                type: mimeType,
                 data: reader.result, // ArrayBuffer - persists across sessions
                 size: file.size,
                 dateAdded: Date.now()
@@ -232,14 +482,29 @@ function loadSongsFromDB() {
                 // New format: create blob URL from stored ArrayBuffer data
                 if (song.data) {
                     try {
-                        // Determine the correct MIME type
-                        let mimeType = song.type || 'audio/mpeg';
-                        // If type is audio/mpeg but file is video, adjust
-                        if (song.name) {
-                            const ext = song.name.toLowerCase().split('.').pop();
-                            if (['mp4', 'webm', 'mkv', 'avi', 'mov', 'm4v', '3gp'].includes(ext)) {
-                                mimeType = 'video/' + (ext === 'mp4' ? 'mp4' : ext === 'webm' ? 'webm' : 'mp4');
-                            }
+                        // Determine the correct MIME type based on file extension
+                        let mimeType = 'audio/mpeg'; // Default to mp3
+                        const ext = song.name ? song.name.toLowerCase().split('.').pop() : '';
+
+                        // Check for audio extensions first
+                        const audioExts = ['mp3', 'wav', 'ogg', 'flac', 'aac', 'm4a', 'wma', 'opus'];
+                        const videoExts = ['mp4', 'webm', 'mkv', 'avi', 'mov', 'm4v', '3gp'];
+
+                        if (audioExts.includes(ext)) {
+                            if (ext === 'mp3') mimeType = 'audio/mpeg';
+                            else if (ext === 'wav') mimeType = 'audio/wav';
+                            else if (ext === 'ogg') mimeType = 'audio/ogg';
+                            else if (ext === 'flac') mimeType = 'audio/flac';
+                            else if (ext === 'aac') mimeType = 'audio/aac';
+                            else if (ext === 'm4a') mimeType = 'audio/mp4';
+                            else if (ext === 'wma') mimeType = 'audio/x-ms-wma';
+                            else if (ext === 'opus') mimeType = 'audio/opus';
+                            else mimeType = 'audio/' + ext;
+                        } else if (videoExts.includes(ext)) {
+                            mimeType = 'video/' + (ext === 'mp4' ? 'mp4' : ext === 'webm' ? 'webm' : 'mp4');
+                        } else if (song.type) {
+                            // Use stored type if extension not recognized
+                            mimeType = song.type;
                         }
                         const blob = new Blob([song.data], { type: mimeType });
                         const url = URL.createObjectURL(blob);
@@ -477,7 +742,7 @@ function finishScan() {
     checkStorageQuota();
 
     // If this is the first song, auto-play it
-    if (media.length > 0 && currentIndex === 0 && audio.src === '') {
+    if (media.length > 0 && currentIndex === 0 && audio && audio.src === '') {
         play(0);
     }
 }
@@ -486,11 +751,12 @@ function renderPlaylist() {
     const emptyState = document.getElementById("emptyState");
 
     if (media.length === 0) {
-        emptyState.classList.remove("hidden");
+        if (emptyState) emptyState.classList.remove("hidden");
         return;
     }
 
-    emptyState.classList.add("hidden");
+    if (emptyState) emptyState.classList.add("hidden");
+    if (!playlistEl) return;
     playlistEl.innerHTML = "";
 
     media.forEach((item, i) => {
@@ -527,13 +793,13 @@ function renderPlaylist() {
 }
 
 function play(i) {
-    if (i < 0 || i >= media.length) return;
+    if (!audio || i < 0 || i >= media.length) return;
 
     currentIndex = i;
     const item = media[i];
 
     // Support both url (new) and data (old) for backwards compatibility
-    const source = item.url || item.data;
+    const source = item.url || (item.data ? URL.createObjectURL(new Blob([item.data], { type: item.type || 'audio/mpeg' })) : null);
 
     if (!item || !source) {
         console.error("Invalid item or no source");
@@ -556,8 +822,11 @@ function play(i) {
         videoTitleBottom.textContent = item.name;
 
         videoEl.play().catch(err => {
-            console.error("Video play error:", err);
-            alert("Unable to play this video file. Please try another file.");
+            // Only show error if it's not an abort error (which happens when closing)
+            if (err.name !== 'AbortError') {
+                console.error("Video play error:", err);
+                alert("Unable to play this video file. Please try another file.");
+            }
         });
 
         // Don't show audio player UI for video
@@ -566,8 +835,11 @@ function play(i) {
         // Audio playback
         audio.src = source;
         audio.play().catch(err => {
-            console.error("Audio play error:", err);
-            alert("Unable to play this audio file. Please try another file.");
+            // Only show error if it's not an abort error (which happens when closing)
+            if (err.name !== 'AbortError') {
+                console.error("Audio play error:", err);
+                alert("Unable to play this audio file. Please try another file.");
+            }
         });
 
         // Show disc for audio
@@ -725,16 +997,19 @@ function closePlayer() {
 function updateSongCount() {
     const countEl = document.getElementById("songCount");
     const clearBtn = document.getElementById("clearAllBtn");
+    const mode = getCurrentMode();
+    const isVideo = mode === 'video';
+
     if (countEl) {
         const count = media.length;
         if (count === 0) {
-            countEl.textContent = "No songs yet";
+            countEl.textContent = isVideo ? "No movies yet" : "No songs yet";
             if (clearBtn) clearBtn.classList.add("hidden");
         } else if (count === 1) {
-            countEl.textContent = "1 song";
+            countEl.textContent = isVideo ? "1 movie" : "1 song";
             if (clearBtn) clearBtn.classList.remove("hidden");
         } else {
-            countEl.textContent = `${count} songs`;
+            countEl.textContent = isVideo ? `${count} movies` : `${count} songs`;
             if (clearBtn) clearBtn.classList.remove("hidden");
         }
     }
@@ -796,10 +1071,12 @@ function clearAllSongs() {
                     video.pause();
                     video.src = '';
                 }
+                // Clear playlist UI
+                if (playlistEl) playlistEl.innerHTML = '';
                 renderPlaylist();
                 updateSongCount();
-                playerView.classList.add('hidden');
-                miniPlayer.classList.add('hidden');
+                if (playerView) playerView.classList.add('hidden');
+                if (miniPlayer) miniPlayer.classList.add('hidden');
                 checkStorageQuota();
             })
             .catch(err => console.error('Error clearing songs:', err));
@@ -821,6 +1098,16 @@ async function initApp() {
         updateSongCount();
         checkStorageQuota();
         console.log('App initialized with', media.length, 'songs');
+
+        // Show welcome screen on first visit
+        if (shouldShowWelcome()) {
+            showWelcomeScreen();
+        } else {
+            // Update header and file picker for the current mode
+            updateHeaderForMode();
+            updateFilePickerForMode();
+            navigateToPage();
+        }
     } catch (err) {
         console.error('Error initializing app:', err);
     }

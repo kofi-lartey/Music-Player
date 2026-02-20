@@ -347,6 +347,15 @@
             animation: spin 8s linear infinite;
         }
 
+        /* Welcome Screen */
+        .welcome-screen {
+            background: linear-gradient(180deg, #0a0a0f 0%, #12121a 50%, #0d0d14 100%);
+        }
+
+        .welcome-screen .mode-btn:active {
+            transform: scale(0.98);
+        }
+
         .disc-grooves {
             position: absolute;
             inset: 0;
@@ -401,6 +410,76 @@
     <!-- Ambient Background -->
     <div class="ambient-glow"></div>
 
+    <!-- WELCOME SCREEN -->
+    <div id="welcomeScreen" class="welcome-screen hidden relative z-50 min-h-screen flex flex-col">
+        <div class="flex-1 flex flex-col items-center justify-center px-6">
+            <!-- Logo -->
+            <div class="mb-10 text-center">
+                <div
+                    class="w-24 h-24 rounded-3xl bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center mx-auto mb-6 glow-purple shadow-2xl">
+                    <svg class="w-12 h-12 text-white" fill="currentColor" viewBox="0 0 24 24">
+                        <path
+                            d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z" />
+                    </svg>
+                </div>
+                <h1 class="text-3xl font-bold tracking-tight mb-2">Welcome to Melody</h1>
+                <p class="text-gray-400 text-sm">Choose what you want to scan</p>
+            </div>
+
+            <!-- Mode Selection -->
+            <div class="w-full max-w-sm space-y-4">
+                <!-- Audio Option -->
+                <button onclick="selectMode('audio')"
+                    class="mode-btn w-full p-6 rounded-2xl glass border border-violet-500/20 hover:border-violet-500/50 transition-all group">
+                    <div class="flex items-center space-x-4">
+                        <div
+                            class="w-14 h-14 rounded-xl bg-gradient-to-br from-violet-600 to-purple-600 flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+                            <svg class="w-7 h-7 text-white" fill="currentColor" viewBox="0 0 24 24">
+                                <path
+                                    d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z" />
+                            </svg>
+                        </div>
+                        <div class="text-left">
+                            <h3 class="text-lg font-semibold">Music</h3>
+                            <p class="text-xs text-gray-400">MP3, WAV, FLAC, OGG & more</p>
+                        </div>
+                        <svg class="w-5 h-5 text-violet-400 ml-auto" fill="none" stroke="currentColor"
+                            viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                        </svg>
+                    </div>
+                </button>
+
+                <!-- Movies Option -->
+                <button onclick="selectMode('video')"
+                    class="mode-btn w-full p-6 rounded-2xl glass border border-indigo-500/20 hover:border-indigo-500/50 transition-all group">
+                    <div class="flex items-center space-x-4">
+                        <div
+                            class="w-14 h-14 rounded-xl bg-gradient-to-br from-indigo-600 to-blue-600 flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+                            <svg class="w-7 h-7 text-white" fill="currentColor" viewBox="0 0 24 24">
+                                <path
+                                    d="M18 4l2 4h-3l-2-4h-2l2 4h-3l-2-4H8l2 4H7L5 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4h-4z" />
+                            </svg>
+                        </div>
+                        <div class="text-left">
+                            <h3 class="text-lg font-semibold">Movies</h3>
+                            <p class="text-xs text-gray-400">MP4, MKV, WEBM, AVI & more</p>
+                        </div>
+                        <svg class="w-5 h-5 text-indigo-400 ml-auto" fill="none" stroke="currentColor"
+                            viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                        </svg>
+                    </div>
+                </button>
+            </div>
+
+            <!-- Skip Option -->
+            <button onclick="skipWelcome()" class="mt-8 text-sm text-gray-500 hover:text-gray-300 transition-colors">
+                Skip for now
+            </button>
+        </div>
+    </div>
+
     <!-- HEADER -->
     <header class="relative z-10 p-5 flex justify-between items-center">
         <div class="flex items-center space-x-4">
@@ -417,6 +496,16 @@
         </div>
 
         <div class="flex items-center space-x-2">
+            <!-- Home Button -->
+            <button onclick="showHomeScreen()" id="modeToggleBtn"
+                class="action-btn px-3 py-2 rounded-xl text-xs font-medium flex items-center space-x-1.5"
+                title="Go to Home">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                </svg>
+                <span id="modeToggleText">Home</span>
+            </button>
             <button onclick="clearAllSongs()" id="clearAllBtn"
                 class="action-btn px-3 py-2 rounded-xl text-xs font-medium flex items-center space-x-1.5 hidden"
                 title="Clear all songs">
@@ -495,6 +584,40 @@
                 </button>
             </div>
         </div>
+    </main>
+
+    <!-- MOVIES PAGE (Video Playlist) -->
+    <main id="moviesPage" class="hidden relative z-10 flex-1 overflow-y-auto px-4 pb-32 space-y-2">
+        <!-- Empty State for Movies -->
+        <div id="emptyMoviesState"
+            class="empty-state flex flex-col items-center justify-center h-full text-center py-24">
+            <div class="relative mb-8">
+                <div
+                    class="w-32 h-32 rounded-full bg-gradient-to-br from-indigo-500/20 to-blue-500/20 flex items-center justify-center">
+                    <div
+                        class="w-24 h-24 rounded-full bg-gradient-to-br from-indigo-600/30 to-blue-600/30 flex items-center justify-center">
+                        <svg class="w-12 h-12 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                                d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                        </svg>
+                    </div>
+                </div>
+                <div class="absolute inset-0 rounded-full border border-indigo-500/20 animate-pulse"></div>
+            </div>
+            <h2 class="text-2xl font-bold text-white mb-2">No movies yet</h2>
+            <p class="text-gray-500 mb-8 max-w-xs">Scan your device or add video files to start watching</p>
+            <button onclick="scanDevice()" class="scan-btn px-8 py-3.5 rounded-xl font-semibold text-base">
+                <span class="flex items-center justify-center space-x-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                    <span>Scan for Videos</span>
+                </span>
+            </button>
+        </div>
+        <!-- Movies List Container -->
+        <div id="moviesList"></div>
     </main>
 
     <!-- MINI PLAYER -->
